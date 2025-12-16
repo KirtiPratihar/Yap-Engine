@@ -3,6 +3,6 @@ uvicorn
 python-dotenv
 python-multipart
 requests
-pinecone-client
+pinecone
 groq
 pypdf
