@@ -3,31 +3,34 @@
 @tailwind utilities;
 
 :root {
-  /* Golden Dashboard Palette */
-  --bg-sidebar: #FFFDF0;      /* Creamy Yellow */
-  --bg-main: #FFFFFF;         /* Pure White */
-  --primary-yellow: #FFD700;  /* Bright Gold */
-  --primary-dark: #4A3B00;    /* Dark Brown Text */
-  --bubble-user: #FFD700;     /* User Message */
-  --bubble-ai: #FFFDF0;       /* AI Message (Light Cream) */
-  --accent-brown: #3C2A21;    /* Dark Buttons */
+  /* Vesuvius Variables mapped for Tailwind reference if needed */
+  --bg-base: #FFFDE9;
+  --bg-panel: #FFF4AC;
+  --primary: #FFD70D;
+  --text-main: #4C1C00;
+  --text-sec: #833904;
+  --border: #C65C00;
 }
 
 body {
-  color: var(--primary-dark);
-  background-color: var(--bg-main);
-  height: 100vh;
-  overflow: hidden; /* Prevent full page scroll */
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  font-family: 'Inter', sans-serif; /* Clean, modern font */
+  overflow: hidden; /* Lock scroll to panels only */
 }
 
-/* Custom Scrollbar */
+/* Custom "Vesuvius" Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #E5E5E5;
+  background: #EF8700;
   border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C65C00;
 }
