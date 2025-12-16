@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Vesuvius Palette */
+  --bg-cream: #FFFDE9;       /* Lightest (50) */
+  --bg-sun: #FFFAC1;         /* Light Yellow (100) */
+  --accent-gold: #FFB300;    /* Golden (500) */
+  --accent-orange: #EF8700;  /* Deep Orange (600) */
+  --text-brown: #4C1C00;     /* Darkest Brown (950) */
+}
+
+body {
+  color: var(--text-brown);
+  background-color: var(--bg-cream);
+  min-height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFD70D;
+  border-radius: 4px;
+}

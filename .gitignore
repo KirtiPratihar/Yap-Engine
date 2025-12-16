@@ -1,0 +1,9 @@
+# .gitignore
+venv/
+__pycache__/
+*.pyc
+.env
+uploads/
+chroma_db/
+*.pdf
+.DS_Store
