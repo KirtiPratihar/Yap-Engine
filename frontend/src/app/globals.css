@@ -3,28 +3,31 @@
 @tailwind utilities;
 
 :root {
-  /* Vesuvius Palette */
-  --bg-cream: #FFFDE9;       /* Lightest (50) */
-  --bg-sun: #FFFAC1;         /* Light Yellow (100) */
-  --accent-gold: #FFB300;    /* Golden (500) */
-  --accent-orange: #EF8700;  /* Deep Orange (600) */
-  --text-brown: #4C1C00;     /* Darkest Brown (950) */
+  /* Golden Dashboard Palette */
+  --bg-sidebar: #FFFDF0;      /* Creamy Yellow */
+  --bg-main: #FFFFFF;         /* Pure White */
+  --primary-yellow: #FFD700;  /* Bright Gold */
+  --primary-dark: #4A3B00;    /* Dark Brown Text */
+  --bubble-user: #FFD700;     /* User Message */
+  --bubble-ai: #FFFDF0;       /* AI Message (Light Cream) */
+  --accent-brown: #3C2A21;    /* Dark Buttons */
 }
 
 body {
-  color: var(--text-brown);
-  background-color: var(--bg-cream);
-  min-height: 100vh;
+  color: var(--primary-dark);
+  background-color: var(--bg-main);
+  height: 100vh;
+  overflow: hidden; /* Prevent full page scroll */
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #FFD70D;
-  border-radius: 4px;
+  background: #E5E5E5;
+  border-radius: 10px;
 }
