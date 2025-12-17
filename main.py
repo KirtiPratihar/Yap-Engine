@@ -29,7 +29,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")  # New Key
 
 # Initialize
 pc = Pinecone(api_key=PINECONE_KEY)
-index = pc.Index("yap-index") 
+index = pc.Index("chat-index")
 client = groq.Groq(api_key=GROQ_KEY)
 
 # ☁️ Lightweight Embedding (No RAM usage)

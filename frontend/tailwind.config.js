@@ -1,16 +1,27 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+  content: ["./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
-      backgroundImage: {
-        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-conic":
-          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
+      boxShadow: {
+        glow: "0 0 0 0 rgba(255,215,13,0.6)",
+        glowHover: "0 0 40px rgba(255,215,13,0.35)",
+        soft: "0 10px 30px rgba(76,28,0,0.08)",
+        deep: "0 20px 60px rgba(76,28,0,0.12)",
+      },
+      animation: {
+        float: "float 6s ease-in-out infinite",
+        fadeUp: "fadeUp 0.4s ease-out both",
+      },
+      keyframes: {
+        float: {
+          "0%,100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
+        fadeUp: {
+          "0%": { opacity: 0, transform: "translateY(8px)" },
+          "100%": { opacity: 1, transform: "translateY(0)" },
+        },
       },
     },
   },
