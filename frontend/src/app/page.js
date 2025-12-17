@@ -13,7 +13,7 @@ export default function YapEngine() {
   const fileInputRef = useRef(null);
   
   // YOUR BACKEND URL 
-  const API_URL = "https://yap-engine-backend.onrender.com";
+  const API_URL = "https://yap-engine.onrender.com";
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
