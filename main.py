@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 from pypdf import PdfReader
 import io
+import time # Added for delays
 
 load_dotenv()
 
@@ -25,23 +26,38 @@ app.add_middleware(
 # API Keys
 PINECONE_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_KEY = os.getenv("GROQ_API_KEY")
-HF_TOKEN = os.getenv("HF_TOKEN")  # New Key
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 # Initialize
 pc = Pinecone(api_key=PINECONE_KEY)
-index = pc.Index("chat-index")
+index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ Lightweight Embedding (No RAM usage)
+# ☁️ Robust Embedding Function
 def get_embedding(text):
     api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    response = requests.post(api_url, headers=headers, json={"inputs": text, "options": {"wait_for_model": True}})
-    return response.json()
+    
+    # Try up to 3 times if the model is loading
+    for attempt in range(3):
+        response = requests.post(api_url, headers=headers, json={"inputs": text, "options": {"wait_for_model": True}})
+        data = response.json()
+        
+        # If we got a proper list, return it
+        if isinstance(data, list):
+            return data
+        
+        # If model is loading, wait and retry
+        if isinstance(data, dict) and "error" in data:
+            print(f"⚠️ Model loading attempt {attempt+1}: {data}")
+            time.sleep(2) # Wait 2 seconds
+            continue
+            
+    return None # Failed to get vector
 
 @app.get("/")
 def home():
-    return {"message": "Yap-Engine is Awake and Lightweight! ☀️"}
+    return {"message": "Yap-Engine is Awake and Robust! 🛡️"}
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -52,16 +68,23 @@ async def upload_pdf(file: UploadFile = File(...)):
     for page in reader.pages:
         text += page.extract_text() or ""
 
+    # Chunk text
     chunk_size = 500
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
     vectors = []
+    print(f"Processing {len(chunks)} chunks...")
+
     for i, chunk in enumerate(chunks[:20]): 
         vector = get_embedding(chunk)
-        if isinstance(vector, dict) and "error" in vector:
-             print(f"HF Error: {vector}")
-             continue
-        if isinstance(vector, list) and isinstance(vector[0], list):
+        
+        # 🛡️ SAFETY CHECK: Only add if it's actually a list of numbers
+        if not vector or not isinstance(vector, list):
+            print(f"❌ Skipping bad chunk {i}: {vector}")
+            continue
+            
+        # Flatten if nested [[...]] -> [...]
+        if isinstance(vector[0], list):
             vector = vector[0]
             
         vectors.append({
@@ -71,9 +94,14 @@ async def upload_pdf(file: UploadFile = File(...)):
         })
 
     if vectors:
-        index.upsert(vectors)
+        try:
+            index.upsert(vectors)
+            return {"filename": file.filename, "status": "Indexed Successfully"}
+        except Exception as e:
+            print(f"Pinecone Error: {e}")
+            return {"error": str(e)}
     
-    return {"filename": file.filename, "status": "Indexed"}
+    return {"error": "Could not generate embeddings. Try again in 1 minute."}
 
 class Query(BaseModel):
     question: str
@@ -81,7 +109,11 @@ class Query(BaseModel):
 @app.post("/chat")
 async def chat(query: Query):
     q_embedding = get_embedding(query.question)
-    if isinstance(q_embedding, list) and isinstance(q_embedding[0], list):
+    
+    if not q_embedding or not isinstance(q_embedding, list):
+        return {"answer": "⚠️ My brain is still waking up (Model Loading). Please ask again in 10 seconds!"}
+
+    if isinstance(q_embedding[0], list):
         q_embedding = q_embedding[0]
 
     search_res = index.query(vector=q_embedding, top_k=3, include_metadata=True)
