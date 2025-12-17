@@ -1,22 +1,18 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { Send, Upload, FileText, Menu, X, Bot, User, Eye, Sparkles, ChevronRight } from "lucide-react";
+import { Send, Upload, FileText, Bot, User, Sparkles, Trash2 } from "lucide-react";
 
 export default function Home() {
   // --- STATE ---
   const [messages, setMessages] = useState([
     { role: "ai", content: "Ciao! 🌋 I am the Yap-Engine. Upload a PDF and I'll break it down for you." },
   ]);
-  const [documents, setDocuments] = useState([]);
+  const [documents, setDocuments] = useState([]); // This stores your session history
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   
-  // UI Toggles
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
-
   const messagesEndRef = useRef(null);
   const API_URL = "https://yap-engine-backend.onrender.com"; // Your Render URL
 
@@ -38,10 +34,12 @@ export default function Home() {
       const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
       if (!res.ok) throw new Error("Upload failed");
       
-      setDocuments(prev => [...prev, file.name]);
-      setSelectedDoc(file.name);
-      setMessages(prev => [...prev, { role: "ai", content: `🔥 **${file.name}** is hot and ready!` }]);
-      setIsRightPanelOpen(true); // Auto-open source viewer
+      // Add to History List
+      const newDoc = { name: file.name, date: new Date().toLocaleTimeString() };
+      setDocuments(prev => [...prev, newDoc]);
+      setSelectedDoc(newDoc); // Auto-select new doc
+      
+      setMessages(prev => [...prev, { role: "ai", content: `🔥 **${file.name}** analyzed! I'm ready.` }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: "ai", content: "❌ Error: My brain is disconnected. Check Render." }]);
     } finally {
@@ -72,14 +70,17 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#FFFDE9] text-[#4C1C00] font-sans overflow-hidden">
+    // MASTER CONTAINER: Forces 3 columns side-by-side
+    <div className="flex flex-row h-screen w-full bg-[#FFFDE9] text-[#4C1C00] font-sans overflow-hidden">
       
-      {/* --- 1. LEFT PANEL (Documents) --- */}
-      <aside className={`${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 fixed md:relative z-20 w-72 h-full bg-[#FFFAC1] border-r border-[#C65C00]/20 flex flex-col transition-transform duration-300 shadow-[4px_0_24px_rgba(198,92,0,0.05)]`}>
+      {/* --------------------------------------------------
+          1. LEFT PANEL (History & Upload) - Fixed Width 280px
+         -------------------------------------------------- */}
+      <aside className="w-[280px] flex-shrink-0 bg-[#FFFAC1] border-r border-[#C65C00]/20 flex flex-col z-20 shadow-[4px_0_24px_rgba(198,92,0,0.05)]">
         
         {/* Header */}
-        <div className="p-6 pb-2">
-          <div className="flex items-center gap-3 mb-6">
+        <div className="p-6 pb-4">
+          <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 bg-gradient-to-br from-[#FFD70D] to-[#FFB300] rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
               <Sparkles className="text-[#4C1C00] w-6 h-6" />
             </div>
@@ -94,8 +95,10 @@ export default function Home() {
           </label>
         </div>
 
-        {/* Doc List */}
+        {/* History List */}
         <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+          <h3 className="text-xs font-bold text-[#833904] opacity-50 uppercase tracking-widest mb-4 ml-2">History</h3>
+          
           {documents.length === 0 ? (
             <div className="text-center mt-10 opacity-40">
               <FileText className="w-12 h-12 mx-auto mb-2" />
@@ -106,52 +109,47 @@ export default function Home() {
               <div 
                 key={idx} 
                 onClick={() => setSelectedDoc(doc)}
-                className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${selectedDoc === doc ? "bg-white border-[#FFD70D] shadow-md" : "border-transparent hover:bg-white/50"}`}
+                className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${selectedDoc?.name === doc.name ? "bg-white border-[#FFD70D] shadow-md" : "border-transparent hover:bg-white/50"}`}
               >
-                <div className={`p-2 rounded-lg ${selectedDoc === doc ? "bg-[#FFD70D]" : "bg-[#FFE83A]/30"}`}>
+                <div className={`p-2 rounded-lg ${selectedDoc?.name === doc.name ? "bg-[#FFD70D]" : "bg-[#FFE83A]/30"}`}>
                   <FileText className="w-4 h-4 text-[#4C1C00]" />
                 </div>
-                <span className="text-sm font-bold truncate flex-1">{doc}</span>
-                {selectedDoc === doc && <ChevronRight className="w-4 h-4 opacity-50" />}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold truncate">{doc.name}</p>
+                  <p className="text-[10px] opacity-60">{doc.date}</p>
+                </div>
               </div>
             ))
           )}
         </div>
 
-        {/* User Badge */}
-        <div className="p-4 border-t border-[#C65C00]/10 bg-[#FFFAC1]">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-[#FFFDE9] border border-[#C65C00]/10">
+        {/* User Footer */}
+        <div className="p-4 border-t border-[#C65C00]/10">
+          <div className="flex items-center gap-3 p-2">
             <div className="w-8 h-8 rounded-full bg-[#EF8700] flex items-center justify-center text-white font-bold text-xs">SU</div>
             <div className="flex-1">
               <p className="text-xs font-bold">Student User</p>
-              <p className="text-[10px] text-[#833904] uppercase tracking-wider">Free Tier</p>
+              <p className="text-[10px] text-[#833904]">Online</p>
             </div>
           </div>
         </div>
       </aside>
 
 
-      {/* --- 2. CENTER PANEL (Chat) --- */}
-      <main className="flex-1 flex flex-col h-full relative bg-[#FFFDE9] min-w-0">
+      {/* --------------------------------------------------
+          2. CENTER PANEL (Chat) - Flexible Width
+         -------------------------------------------------- */}
+      <main className="flex-1 flex flex-col h-full bg-[#FFFDE9] relative min-w-0">
         
-        {/* Toggle Buttons (Mobile) */}
-        <div className="md:hidden flex justify-between p-4 absolute top-0 w-full z-10 bg-gradient-to-b from-[#FFFDE9] to-transparent">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 bg-white rounded-lg shadow-sm"><Menu className="w-5 h-5"/></button>
-          <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className="p-2 bg-white rounded-lg shadow-sm"><Eye className="w-5 h-5"/></button>
-        </div>
-
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pt-16 md:pt-8 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 scroll-smooth">
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex gap-4 max-w-3xl mx-auto ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-              {/* Avatar */}
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm border-2 border-white ${
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-2 border-white ${
                 msg.role === "ai" ? "bg-[#FFFAC1]" : "bg-[#FFD70D]"
               }`}>
                 {msg.role === "ai" ? <Sparkles size={18} className="text-[#EF8700]" /> : <User size={18} className="text-[#4C1C00]" />}
               </div>
-
-              {/* Bubble */}
               <div className={`p-5 rounded-3xl text-[15px] leading-relaxed shadow-sm max-w-[85%] ${
                 msg.role === "ai" 
                   ? "bg-white text-[#4C1C00] rounded-tl-none border border-[#FFFAC1]" 
@@ -190,40 +188,36 @@ export default function Home() {
               <Send className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-center text-[10px] text-[#833904]/50 mt-3 font-medium">
-            Powered by Llama-3 • Yap-Engine can make mistakes.
-          </p>
         </div>
       </main>
 
 
-      {/* --- 3. RIGHT PANEL (Source Viewer) --- */}
-      <aside className={`${isRightPanelOpen ? "translate-x-0" : "translate-x-full"} xl:translate-x-0 fixed xl:relative right-0 z-20 w-80 h-full bg-[#FFFAC1] border-l border-[#C65C00]/20 transition-transform duration-300 flex flex-col shadow-[-4px_0_24px_rgba(198,92,0,0.05)]`}>
+      {/* --------------------------------------------------
+          3. RIGHT PANEL (PDF Viewer) - Fixed Width 350px
+         -------------------------------------------------- */}
+      <aside className="w-[350px] flex-shrink-0 bg-[#FFFAC1] border-l border-[#C65C00]/20 flex flex-col shadow-[-4px_0_24px_rgba(198,92,0,0.05)]">
         
-        <div className="p-5 border-b border-[#C65C00]/10 flex items-center justify-between bg-[#FFFAC1]">
+        <div className="p-5 border-b border-[#C65C00]/10 bg-[#FFFAC1]">
           <h2 className="font-bold text-[#833904] flex items-center gap-2">
-            <Eye className="w-4 h-4"/> Source Viewer
+            <FileText className="w-4 h-4"/> Source Viewer
           </h2>
-          <button onClick={() => setIsRightPanelOpen(false)} className="xl:hidden p-1 hover:bg-[#FFE83A] rounded-lg transition-colors">
-            <X size={18} />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
           {selectedDoc ? (
             <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="mb-4 flex items-center gap-2 p-2 bg-[#FFE83A]/20 rounded-lg text-xs font-bold text-[#833904]">
-                <FileText size={14} />
-                <span className="truncate">{selectedDoc}</span>
+              <div className="mb-6 p-4 bg-white rounded-xl border border-[#FFD70D] shadow-sm">
+                 <h3 className="text-sm font-bold text-[#4C1C00] mb-1">Current Document</h3>
+                 <p className="text-xs text-[#833904] opacity-70 break-all">{selectedDoc.name}</p>
               </div>
               
               <div className="prose prose-sm prose-p:text-[#4C1C00]">
                 <p className="text-sm leading-relaxed p-4 bg-white rounded-xl border border-[#FFFAC1] shadow-sm">
-                  <span className="block text-[10px] font-bold text-[#EF8700] uppercase mb-2">Excerpt Match</span>
-                  "The storage information schedule is established to determine priority of system resources..."
+                  <span className="block text-[10px] font-bold text-[#EF8700] uppercase mb-2">Live Extraction</span>
+                   (Here we will display the exact text match from the PDF once we connect the "Source" backend feature.)
                   <br/><br/>
                   <mark className="bg-[#FFE83A] text-[#4C1C00] px-1 py-0.5 rounded font-medium">
-                    "This document explains storage schedules and system priorities."
+                    "This text is highlighted to represent where the AI found its answer."
                   </mark>
                 </p>
               </div>
@@ -231,9 +225,9 @@ export default function Home() {
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-[#833904]/40 text-center space-y-3">
               <div className="w-16 h-16 bg-[#FFFDE9] rounded-full flex items-center justify-center">
-                <Eye className="w-8 h-8 opacity-50" />
+                <FileText className="w-8 h-8 opacity-50" />
               </div>
-              <p className="text-sm font-medium px-6">Select a document to see the magic highlighted here.</p>
+              <p className="text-sm font-medium px-6">Select a document from the left to view it here.</p>
             </div>
           )}
         </div>
