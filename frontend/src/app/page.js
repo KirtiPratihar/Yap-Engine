@@ -1,79 +1,34 @@
-"use client";
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function YapEngine() {
-  // --- STATE (Connected to Backend) ---
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [documents, setDocuments] = useState([]); // Stores uploaded files
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  
-  const messagesEndRef = useRef(null);
-  
-  // ⚠️ YOUR RENDER URL
-  const API_URL = "https://yap-engine-backend.onrender.com";
+  const [documents, setDocuments] = useState([]);
 
-  // Auto-scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // --- HANDLERS ---
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
-      if (!res.ok) throw new Error("Upload failed");
-      
-      setDocuments(prev => [...prev, file.name]);
-      setMessages(prev => [...prev, { type: 'ai', text: `✅ Read "${file.name}". Ready to chat!` }]);
-    } catch (err) {
-      setMessages(prev => [...prev, { type: 'ai', text: "❌ Upload failed. Check backend connection." }]);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const sendMessage = async () => {
+  const sendMessage = () => {
     if (!input.trim()) return;
     
-    const userMsg = input;
+    setMessages([...messages, {
+      type: 'user',
+      text: input
+    }]);
     setInput('');
-    setMessages(prev => [...prev, { type: 'user', text: userMsg }]);
-    setLoading(true);
-
-    try {
-      const res = await fetch(`${API_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: userMsg }),
-      });
-      const data = await res.json();
-      
-      setMessages(prev => [...prev, { 
-        type: 'ai', 
-        text: data.answer,
-        source: 'PDF Source' // Backend integration for specific page numbers coming soon
+    
+    // Simulate AI response
+    setTimeout(() => {
+      setMessages(prev => [...prev, {
+        type: 'ai',
+        text: 'Based on the uploaded documents, I found relevant information...',
+        source: 'Page 3, research_paper.pdf'
       }]);
-    } catch (err) {
-      setMessages(prev => [...prev, { type: 'ai', text: "⚠️ Error connecting to brain." }]);
-    } finally {
-      setLoading(false);
-    }
+    }, 800);
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-amber-50 to-yellow-50 text-amber-950 font-sans">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-amber-50 to-yellow-50">
       
       {/* Header */}
-      <header className="h-16 flex items-center px-8 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 shadow-lg shrink-0 z-10">
+      <header className="h-16 flex items-center px-8 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 shadow-lg">
         <div className="flex items-center gap-3">
           <span className="text-3xl">✨</span>
           <h1 className="text-2xl font-black tracking-wide text-amber-900">YAP ENGINE</h1>
@@ -84,37 +39,37 @@ export default function YapEngine() {
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Sidebar - Documents */}
-        <aside className="w-64 bg-white/80 backdrop-blur-sm border-r border-amber-200 p-4 flex flex-col shrink-0">
-          {/* Upload Button (Functional) */}
-          <label className="w-full py-3 mb-6 rounded-xl font-semibold text-amber-900
+        <aside className="w-64 bg-white/80 backdrop-blur-sm border-r border-amber-200 p-4 flex flex-col">
+          <button className="w-full py-3 mb-6 rounded-xl font-semibold text-amber-900
             bg-gradient-to-r from-yellow-300 to-amber-300
             hover:from-yellow-400 hover:to-amber-400
             shadow-lg hover:shadow-xl
-            transition-all duration-200 transform hover:scale-105
-            flex items-center justify-center cursor-pointer">
-            {uploading ? "⏳ Reading..." : "📄 Upload PDF"}
-            <input type="file" accept="application/pdf" className="hidden" onChange={handleUpload} />
-          </label>
+            transition-all duration-200 transform hover:scale-105">
+            📄 Upload PDF
+          </button>
 
           <div className="flex-1 overflow-y-auto">
             <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-3">Documents</h3>
-            <div className="space-y-2">
-              {documents.length === 0 && <p className="text-xs text-amber-900/40 italic">No files yet.</p>}
-              {documents.map((doc, i) => (
-                <div key={i} className="p-3 rounded-lg bg-amber-50 hover:bg-amber-100 
-                  cursor-pointer transition-colors border border-amber-200">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">📑</span>
-                    <span className="text-sm text-amber-900 truncate">{doc}</span>
+            {documents.length === 0 ? (
+              <p className="text-sm text-amber-500 text-center mt-8">No documents uploaded yet</p>
+            ) : (
+              <div className="space-y-2">
+                {documents.map((doc, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-amber-50 hover:bg-amber-100 
+                    cursor-pointer transition-colors border border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">📑</span>
+                      <span className="text-sm text-amber-900 truncate">{doc}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </aside>
 
         {/* Center - Chat Area (BIGGER) */}
-        <section className="flex-1 flex flex-col min-w-0">
+        <section className="flex-1 flex flex-col">
           
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -134,9 +89,9 @@ export default function YapEngine() {
                       ? 'bg-gradient-to-r from-yellow-400 to-amber-400 text-amber-900 ml-auto' 
                       : 'bg-white border border-amber-200'
                   }`}>
-                    <p className="break-words leading-relaxed">{msg.text}</p>
+                    <p className="break-words">{msg.text}</p>
                     {msg.source && (
-                      <div className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-600 font-medium">
+                      <div className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-600">
                         📍 {msg.source}
                       </div>
                     )}
@@ -144,18 +99,6 @@ export default function YapEngine() {
                 </div>
               ))
             )}
-            {loading && (
-               <div className="flex justify-start">
-                 <div className="bg-white border border-amber-200 p-4 rounded-2xl shadow-md">
-                   <div className="flex gap-2">
-                     <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></div>
-                     <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce delay-100"></div>
-                     <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce delay-200"></div>
-                   </div>
-                 </div>
-               </div>
-            )}
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Input */}
@@ -164,22 +107,20 @@ export default function YapEngine() {
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                 className="flex-1 px-5 py-3 rounded-xl border-2 border-amber-200 
                   focus:border-amber-400 focus:outline-none
-                  bg-white shadow-sm placeholder-amber-900/30"
+                  bg-white shadow-sm"
                 placeholder="Ask a question about your documents..."
-                disabled={loading}
               />
               <button
                 onClick={sendMessage}
-                disabled={!input.trim() || loading}
                 className="px-6 py-3 rounded-xl font-semibold
                   bg-gradient-to-r from-yellow-400 to-amber-400
                   hover:from-yellow-500 hover:to-amber-500
                   shadow-lg hover:shadow-xl
                   transition-all duration-200 transform hover:scale-105
-                  text-amber-900 disabled:opacity-50 disabled:scale-100">
+                  text-amber-900">
                 <span className="text-xl">➤</span>
               </button>
             </div>
@@ -187,7 +128,7 @@ export default function YapEngine() {
         </section>
 
         {/* Right Sidebar - Source Viewer */}
-        <aside className="w-80 bg-white border-l border-amber-200 p-5 flex flex-col shrink-0 hidden md:flex">
+        <aside className="w-80 bg-white border-l border-amber-200 p-5 flex flex-col">
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-amber-200">
             <span className="text-lg">📄</span>
             <h3 className="font-bold text-amber-900">Source Context</h3>
@@ -195,8 +136,8 @@ export default function YapEngine() {
           
           <div className="flex-1 overflow-y-auto">
             <div className="text-sm text-amber-700 leading-relaxed space-y-3">
-              <p className="text-center text-amber-500 mt-8 italic">
-                Source excerpts will appear here when you ask questions.
+              <p className="text-center text-amber-500 mt-8">
+                Source excerpts will appear here when you ask questions
               </p>
             </div>
           </div>
