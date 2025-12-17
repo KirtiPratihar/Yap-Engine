@@ -2,29 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Vesuvio palette */
-  --bg-main: #FFFDE9;
-  --bg-panel: #FFF4AC;
-  --accent: #FFD70D;
-  --accent-strong: #FFB300;
-  --accent-hover: #EF8700;
-
-  --text-main: #4C1C00;
-  --text-muted: #833904;
-  --border: #C65C00;
-
-  /* Glow tokens */
-  --glow-soft: 0 0 20px rgba(255, 215, 13, 0.35);
-  --glow-strong: 0 0 40px rgba(255, 179, 0, 0.45);
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 html, body {
   height: 100%;
+  width: 100%;
   overflow: hidden;
 }
 
 body {
-  background: var(--bg-main);
-  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
