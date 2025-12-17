@@ -3,34 +3,28 @@
 @tailwind utilities;
 
 :root {
-  /* Vesuvius Variables mapped for Tailwind reference if needed */
-  --bg-base: #FFFDE9;
+  /* Vesuvio palette */
+  --bg-main: #FFFDE9;
   --bg-panel: #FFF4AC;
-  --primary: #FFD70D;
+  --accent: #FFD70D;
+  --accent-strong: #FFB300;
+  --accent-hover: #EF8700;
+
   --text-main: #4C1C00;
-  --text-sec: #833904;
+  --text-muted: #833904;
   --border: #C65C00;
+
+  /* Glow tokens */
+  --glow-soft: 0 0 20px rgba(255, 215, 13, 0.35);
+  --glow-strong: 0 0 40px rgba(255, 179, 0, 0.45);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  background-color: var(--bg-base);
+  background: var(--bg-main);
   color: var(--text-main);
-  font-family: 'Inter', sans-serif; /* Clean, modern font */
-  overflow: hidden; /* Lock scroll to panels only */
-}
-
-/* Custom "Vesuvius" Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #EF8700;
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #C65C00;
 }
