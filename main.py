@@ -33,27 +33,32 @@ pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ Robust Embedding Function
+# ☁️ Patient Embedding Function (Updated URL)
 def get_embedding(text):
-    api_url = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+    # ✅ NEW URL (The old one died)
+    api_url = "https://router.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
-    # Try up to 3 times if the model is loading
-    for attempt in range(3):
-        response = requests.post(api_url, headers=headers, json={"inputs": text, "options": {"wait_for_model": True}})
-        data = response.json()
-        
-        # If we got a proper list, return it
-        if isinstance(data, list):
-            return data
-        
-        # If model is loading, wait and retry
-        if isinstance(data, dict) and "error" in data:
-            print(f"⚠️ Model loading attempt {attempt+1}: {data}")
-            time.sleep(2) # Wait 2 seconds
-            continue
+    for attempt in range(10):
+        try:
+            response = requests.post(api_url, headers=headers, json={"inputs": text, "options": {"wait_for_model": True}})
+            data = response.json()
             
-    return None # Failed to get vector
+            # ✅ Success
+            if isinstance(data, list):
+                return data
+            
+            # 💤 Loading
+            if isinstance(data, dict) and "error" in data:
+                print(f"⚠️ Model loading (Attempt {attempt+1}/10)... waiting 5s")
+                time.sleep(5)
+                continue
+                
+        except Exception as e:
+            print(f"Network error: {e}")
+            time.sleep(2)
+
+    return None
 
 @app.get("/")
 def home():
