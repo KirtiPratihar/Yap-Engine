@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState } from 'react';
@@ -28,41 +27,107 @@ export default function YapEngine() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-amber-50 to-yellow-50">
+    <div style={{
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'linear-gradient(to bottom right, #fffbeb, #fef3c7)'
+    }}>
       
       {/* Header */}
-      <header className="h-16 flex items-center px-8 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 shadow-lg">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">✨</span>
-          <h1 className="text-2xl font-black tracking-wide text-amber-900">YAP ENGINE</h1>
+      <header style={{
+        height: '64px',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 2rem',
+        background: 'linear-gradient(to right, #fbbf24, #f59e0b)',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '1.875rem' }}>✨</span>
+          <h1 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: '900', 
+            letterSpacing: '0.05em',
+            color: '#78350f'
+          }}>YAP ENGINE</h1>
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         
-        {/* Left Sidebar - Documents */}
-        <aside className="w-64 bg-white/80 backdrop-blur-sm border-r border-amber-200 p-4 flex flex-col">
-          <button className="w-full py-3 mb-6 rounded-xl font-semibold text-amber-900
-            bg-gradient-to-r from-yellow-300 to-amber-300
-            hover:from-yellow-400 hover:to-amber-400
-            shadow-lg hover:shadow-xl
-            transition-all duration-200 transform hover:scale-105">
+        {/* Left Sidebar - 20% */}
+        <aside style={{
+          width: '20%',
+          minWidth: '240px',
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(10px)',
+          borderRight: '1px solid #fcd34d',
+          padding: '1rem',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <button style={{
+            width: '100%',
+            padding: '0.75rem',
+            marginBottom: '1.5rem',
+            borderRadius: '12px',
+            fontWeight: '600',
+            color: '#78350f',
+            background: 'linear-gradient(to right, #fde047, #fbbf24)',
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+          }}>
             📄 Upload PDF
           </button>
 
-          <div className="flex-1 overflow-y-auto">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-3">Documents</h3>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <h3 style={{ 
+              fontSize: '0.75rem', 
+              fontWeight: '700', 
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#b45309',
+              marginBottom: '0.75rem'
+            }}>Documents</h3>
             {documents.length === 0 ? (
-              <p className="text-sm text-amber-500 text-center mt-8">No documents uploaded yet</p>
+              <p style={{ 
+                fontSize: '0.875rem', 
+                color: '#f59e0b', 
+                textAlign: 'center',
+                marginTop: '2rem'
+              }}>No documents uploaded yet</p>
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {documents.map((doc, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-amber-50 hover:bg-amber-100 
-                    cursor-pointer transition-colors border border-amber-200">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">📑</span>
-                      <span className="text-sm text-amber-900 truncate">{doc}</span>
+                  <div key={i} style={{
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    background: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.875rem' }}>📑</span>
+                      <span style={{ 
+                        fontSize: '0.875rem', 
+                        color: '#78350f',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>{doc}</span>
                     </div>
                   </div>
                 ))}
@@ -71,30 +136,71 @@ export default function YapEngine() {
           </div>
         </aside>
 
-        {/* Center - Chat Area (BIGGER) */}
-        <section className="flex-1 flex flex-col">
+        {/* Center - Chat Area (60%) */}
+        <section style={{ 
+          width: '60%', 
+          display: 'flex', 
+          flexDirection: 'column' 
+        }}>
           
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
             {messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center space-y-4 max-w-md">
-                  <div className="text-6xl mb-4">💬</div>
-                  <h2 className="text-2xl font-bold text-amber-900">Ask me anything</h2>
-                  <p className="text-amber-700">Upload a PDF and start asking questions about your documents</p>
+              <div style={{ 
+                height: '100%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center' 
+              }}>
+                <div style={{ 
+                  textAlign: 'center', 
+                  maxWidth: '28rem'
+                }}>
+                  <div style={{ fontSize: '8rem', marginBottom: '1rem' }}>💬</div>
+                  <h2 style={{ 
+                    fontSize: '2rem', 
+                    fontWeight: '700', 
+                    color: '#78350f',
+                    marginBottom: '1rem'
+                  }}>Ask me anything</h2>
+                  <p style={{ fontSize: '1.125rem', color: '#b45309' }}>
+                    Upload a PDF and start asking questions about your documents
+                  </p>
                 </div>
               </div>
             ) : (
               messages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] p-4 rounded-2xl shadow-md ${
-                    msg.type === 'user' 
-                      ? 'bg-gradient-to-r from-yellow-400 to-amber-400 text-amber-900 ml-auto' 
-                      : 'bg-white border border-amber-200'
-                  }`}>
-                    <p className="break-words">{msg.text}</p>
+                <div key={i} style={{ 
+                  display: 'flex', 
+                  justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start' 
+                }}>
+                  <div style={{
+                    maxWidth: '75%',
+                    padding: '1rem',
+                    borderRadius: '16px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    background: msg.type === 'user' 
+                      ? 'linear-gradient(to right, #fbbf24, #f59e0b)'
+                      : 'white',
+                    color: msg.type === 'user' ? '#78350f' : '#1f2937',
+                    border: msg.type === 'user' ? 'none' : '1px solid #fcd34d'
+                  }}>
+                    <p style={{ wordBreak: 'break-word' }}>{msg.text}</p>
                     {msg.source && (
-                      <div className="mt-2 pt-2 border-t border-amber-200 text-xs text-amber-600">
+                      <div style={{
+                        marginTop: '0.5rem',
+                        paddingTop: '0.5rem',
+                        borderTop: '1px solid #fcd34d',
+                        fontSize: '0.75rem',
+                        color: '#d97706'
+                      }}>
                         📍 {msg.source}
                       </div>
                     )}
@@ -105,44 +211,93 @@ export default function YapEngine() {
           </div>
 
           {/* Input */}
-          <div className="p-4 bg-white/80 backdrop-blur-sm border-t border-amber-200">
-            <div className="flex gap-3 max-w-5xl mx-auto">
+          <div style={{
+            padding: '1rem',
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(10px)',
+            borderTop: '1px solid #fcd34d'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.75rem',
+              maxWidth: '80rem',
+              margin: '0 auto'
+            }}>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                className="flex-1 px-5 py-3 rounded-xl border-2 border-amber-200 
-                  focus:border-amber-400 focus:outline-none
-                  bg-white shadow-sm"
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '12px',
+                  border: '2px solid #fcd34d',
+                  outline: 'none',
+                  background: 'white',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                  fontSize: '1rem'
+                }}
                 placeholder="Ask a question about your documents..."
               />
               <button
                 onClick={sendMessage}
-                className="px-6 py-3 rounded-xl font-semibold
-                  bg-gradient-to-r from-yellow-400 to-amber-400
-                  hover:from-yellow-500 hover:to-amber-500
-                  shadow-lg hover:shadow-xl
-                  transition-all duration-200 transform hover:scale-105
-                  text-amber-900">
-                <span className="text-xl">➤</span>
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  fontWeight: '600',
+                  background: 'linear-gradient(to right, #fbbf24, #f59e0b)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  color: '#78350f',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+                }}>
+                <span style={{ fontSize: '1.25rem' }}>➤</span>
               </button>
             </div>
           </div>
         </section>
 
-        {/* Right Sidebar - Source Viewer */}
-        <aside className="w-80 bg-white border-l border-amber-200 p-5 flex flex-col">
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-amber-200">
-            <span className="text-lg">📄</span>
-            <h3 className="font-bold text-amber-900">Source Context</h3>
+        {/* Right Sidebar - 20% */}
+        <aside style={{
+          width: '20%',
+          minWidth: '280px',
+          background: 'white',
+          borderLeft: '1px solid #fcd34d',
+          padding: '1.25rem',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginBottom: '1rem',
+            paddingBottom: '0.75rem',
+            borderBottom: '1px solid #fcd34d'
+          }}>
+            <span style={{ fontSize: '1.125rem' }}>📄</span>
+            <h3 style={{ fontWeight: '700', color: '#78350f' }}>Source Context</h3>
           </div>
           
-          <div className="flex-1 overflow-y-auto">
-            <div className="text-sm text-amber-700 leading-relaxed space-y-3">
-              <p className="text-center text-amber-500 mt-8">
-                Source excerpts will appear here when you ask questions
-              </p>
-            </div>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <p style={{
+              fontSize: '0.875rem',
+              color: '#f59e0b',
+              textAlign: 'center',
+              marginTop: '2rem',
+              lineHeight: '1.5'
+            }}>
+              Source excerpts will appear here when you ask questions
+            </p>
           </div>
         </aside>
 
