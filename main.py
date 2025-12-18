@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 from pypdf import PdfReader
 import io
-import time # Added for delays
+import time
 
 load_dotenv()
 
@@ -32,46 +32,42 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
-# ☁️ Patient Embedding Function (Corrected Router URL)
+
+# ☁️ Robust Embedding Function
 def get_embedding(text):
-    # ✅ CORRECT URL STRUCTURE (Uses /models/ instead of /pipeline/)
     api_url = "https://router.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
-    for attempt in range(10):
+    for attempt in range(5): 
         try:
-            response = requests.post(api_url, headers=headers, json={"inputs": text, "options": {"wait_for_model": True}})
+            payload = {"inputs": text, "options": {"wait_for_model": True}}
+            response = requests.post(api_url, headers=headers, json=payload)
             
-            # Debugging: If it fails, print what the server actually said
             if response.status_code != 200:
-                print(f"⚠️ Server Error ({response.status_code}): {response.text}")
-                time.sleep(2)
+                print(f"⚠️ Error {response.status_code}: {response.text}")
+                if response.status_code == 429: 
+                    time.sleep(10) # Cooldown if blocked
+                else:
+                    time.sleep(2)
                 continue
 
             data = response.json()
-            
-            # ✅ Success
             if isinstance(data, list):
                 return data
-            
-            # 💤 Loading
-            if isinstance(data, dict) and "error" in data:
-                print(f"⚠️ Model loading (Attempt {attempt+1}/10)... waiting 5s")
-                time.sleep(5)
-                continue
                 
         except Exception as e:
-            print(f"Network error: {e}")
+            print(f"❌ Network Error: {e}")
             time.sleep(2)
 
     return None
 
 @app.get("/")
 def home():
-    return {"message": "Yap-Engine is Awake and Robust! 🛡️"}
+    return {"message": "Yap-Engine is Awake! 🚀"}
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
+    print(f"📥 Received file: {file.filename}")
     contents = await file.read()
     pdf_file = io.BytesIO(contents)
     reader = PdfReader(pdf_file)
@@ -84,35 +80,41 @@ async def upload_pdf(file: UploadFile = File(...)):
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
     vectors = []
-    print(f"Processing {len(chunks)} chunks...")
+    print(f"Processing {len(chunks)} chunks (Full Document)...")
 
-    for i, chunk in enumerate(chunks[:20]): 
+    # ✅ FIXED: Loop through ALL chunks (No limit)
+    for i, chunk in enumerate(chunks): 
+        print(f"Processing chunk {i+1}/{len(chunks)}...") # Progress Log
+        
         vector = get_embedding(chunk)
         
-        # 🛡️ SAFETY CHECK: Only add if it's actually a list of numbers
-        if not vector or not isinstance(vector, list):
-            print(f"❌ Skipping bad chunk {i}: {vector}")
+        if not vector:
+            print(f"❌ Failed to process chunk {i+1}")
             continue
-            
-        # Flatten if nested [[...]] -> [...]
-        if isinstance(vector[0], list):
-            vector = vector[0]
             
         vectors.append({
             "id": f"{file.filename}_{i}",
             "values": vector,
             "metadata": {"text": chunk}
         })
+        
+        # ⏳ Safety Pause: 0.5s is usually enough to prevent 429 errors
+        time.sleep(0.5)
 
     if vectors:
         try:
-            index.upsert(vectors)
+            # Upsert in batches of 100 to be safe
+            batch_size = 100
+            for i in range(0, len(vectors), batch_size):
+                batch = vectors[i:i+batch_size]
+                index.upsert(batch)
+            
+            print("✅ Upload Complete!")
             return {"filename": file.filename, "status": "Indexed Successfully"}
         except Exception as e:
-            print(f"Pinecone Error: {e}")
             return {"error": str(e)}
     
-    return {"error": "Could not generate embeddings. Try again in 1 minute."}
+    return {"error": "Could not generate embeddings."}
 
 class Query(BaseModel):
     question: str
@@ -121,13 +123,10 @@ class Query(BaseModel):
 async def chat(query: Query):
     q_embedding = get_embedding(query.question)
     
-    if not q_embedding or not isinstance(q_embedding, list):
-        return {"answer": "⚠️ My brain is still waking up (Model Loading). Please ask again in 10 seconds!"}
+    if not q_embedding:
+        return {"answer": "⚠️ Error: AI model is not responding."}
 
-    if isinstance(q_embedding[0], list):
-        q_embedding = q_embedding[0]
-
-    search_res = index.query(vector=q_embedding, top_k=3, include_metadata=True)
+    search_res = index.query(vector=q_embedding, top_k=5, include_metadata=True)
     context = "\n".join([match['metadata']['text'] for match in search_res['matches']])
 
     chat_completion = client.chat.completions.create(
