@@ -32,16 +32,22 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
-
-# ☁️ Patient Embedding Function (Updated URL)
+# ☁️ Patient Embedding Function (Corrected Router URL)
 def get_embedding(text):
-    # ✅ NEW URL (The old one died)
-    api_url = "https://router.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+    # ✅ CORRECT URL STRUCTURE (Uses /models/ instead of /pipeline/)
+    api_url = "https://router.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     for attempt in range(10):
         try:
             response = requests.post(api_url, headers=headers, json={"inputs": text, "options": {"wait_for_model": True}})
+            
+            # Debugging: If it fails, print what the server actually said
+            if response.status_code != 200:
+                print(f"⚠️ Server Error ({response.status_code}): {response.text}")
+                time.sleep(2)
+                continue
+
             data = response.json()
             
             # ✅ Success
