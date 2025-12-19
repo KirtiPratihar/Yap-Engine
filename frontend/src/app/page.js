@@ -1,42 +1,34 @@
-"use client";
+'use client'
+
 import { useState, useRef, useEffect } from 'react';
 
 export default function YapEngine() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [documents, setDocuments] = useState([]);
-  const [activePdfUrl, setActivePdfUrl] = useState(null);
-  const [activePdfName, setActivePdfName] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [chunks, setChunks] = useState(0);
   
+  // NEW: State to handle the Right Sidebar content
+  const [sourceContext, setSourceContext] = useState(null);
+
   const messagesEndRef = useRef(null);
-  
-  // Change this to your actual API URL
+  const fileInputRef = useRef(null);
+
+  // YOUR BACKEND URL 
   const API_URL = "https://yap-engine.onrender.com";
 
+  // Auto-scroll to bottom of chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // 📤 HANDLE FILE UPLOAD (REAL)
   const handleUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.pdf')) {
-      alert('Please upload a PDF file!');
-      return;
-    }
-
-    // INSTANTLY show PDF in viewer
-    const objectUrl = URL.createObjectURL(file);
-    setActivePdfUrl(objectUrl);
-    setActivePdfName(file.name);
-    setDocuments(prev => [...prev, { name: file.name, url: objectUrl }]);
     setUploading(true);
-
-    // Upload to backend
     const formData = new FormData();
     formData.append("file", file);
 
@@ -45,54 +37,70 @@ export default function YapEngine() {
         method: "POST", 
         body: formData 
       });
-      
+
       if (!res.ok) throw new Error("Upload failed");
+
+      setDocuments(prev => [...prev, file.name]);
       
-      const data = await res.json();
-      setChunks(data.chunks || 0);
+      // UPDATE RIGHT SIDEBAR ON UPLOAD
+      setSourceContext({
+        title: "File Uploaded Successfully",
+        content: `Filename: ${file.name}\nSize: ${(file.size / 1024).toFixed(2)} KB\nType: ${file.type}\n\nYou can now ask questions specifically about this document.`
+      });
+
       setMessages(prev => [...prev, { 
-        type: 'bot', 
-        text: `✅ Successfully processed "${file.name}"! I've read ${data.pages} pages and created ${data.chunks} knowledge chunks. Ask me anything! 🧠` 
+        type: 'ai', 
+        text: `✅ Successfully uploaded "${file.name}". You can now ask questions about it!` 
       }]);
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, { 
-        type: 'bot', 
-        text: "⚠️ PDF is displayed, but couldn't connect to backend. Make sure your FastAPI server is running on port 8000!" 
+        type: 'ai', 
+        text: "❌ Upload failed. Make sure your backend is running!" 
       }]);
     } finally {
       setUploading(false);
     }
   };
 
+  // 💬 SEND MESSAGE (REAL)
   const sendMessage = async () => {
-    if (!input.trim()) return;
-    
+    if (!input.trim() || loading) return;
+
     const userMsg = input;
     setInput('');
     setMessages(prev => [...prev, { type: 'user', text: userMsg }]);
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/yap`, {
+      const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: userMsg }),
       });
-      
-      if (!res.ok) throw new Error("Backend error");
-      
+
+      if (!res.ok) throw new Error("Chat request failed");
+
       const data = await res.json();
-      
+
+      // UPDATE RIGHT SIDEBAR WITH RETRIEVED CONTEXT (If available)
+      if (data.source) {
+        setSourceContext({
+          title: "Context Retrieved",
+          content: data.source
+        });
+      }
+
       setMessages(prev => [...prev, { 
-        type: 'bot', 
-        text: data.answer,
-        sources: data.source_chunks || []
+        type: 'ai', 
+        text: data.answer || data.response || "I couldn't find an answer.",
+        source: data.source || null
       }]);
     } catch (err) {
+      console.error(err);
       setMessages(prev => [...prev, { 
-        type: 'bot', 
-        text: "❌ Couldn't get an answer. Make sure your backend is running!" 
+        type: 'ai', 
+        text: "⚠️ Error connecting to backend. Is it running?" 
       }]);
     } finally {
       setLoading(false);
@@ -100,180 +108,336 @@ export default function YapEngine() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-yellow-50 to-amber-50">
-      
+    <div style={{
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'linear-gradient(to bottom right, #fffbeb, #fef3c7)'
+    }}>
+
       {/* Header */}
-      <header className="h-16 bg-gradient-to-r from-yellow-400 to-amber-500 shadow-lg flex items-center px-6 shrink-0">
-        <span className="text-3xl mr-3">✨</span>
-        <h1 className="text-2xl font-bold text-amber-900">YAP ENGINE</h1>
+      <header style={{
+        height: '64px',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 2rem',
+        background: 'linear-gradient(to right, #fbbf24, #f59e0b)',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '1.875rem' }}>✨</span>
+          <h1 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: '900', 
+            letterSpacing: '0.05em',
+            color: '#78350f'
+          }}>YAP ENGINE</h1>
+        </div>
       </header>
 
-      {/* Main Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Left Sidebar - Document History */}
-        <aside className="w-64 bg-white border-r border-amber-200 flex flex-col shrink-0">
-          
-          {/* Upload Button */}
-          <label className={`m-4 py-3 rounded-xl font-semibold text-center cursor-pointer
-            bg-gradient-to-r from-yellow-400 to-amber-400 text-amber-900
-            hover:from-yellow-500 hover:to-amber-500 shadow-lg hover:shadow-xl
-            transition-all ${uploading ? "opacity-50 cursor-wait" : ""}`}>
-            {uploading ? "⏳ Uploading..." : "📄 Upload PDF"}
+      {/* Main Content */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+        {/* Left Sidebar - 20% */}
+        <aside style={{
+          width: '20%',
+          minWidth: '240px',
+          background: 'rgba(255, 255, 255, 0.8)',
+          backdropFilter: 'blur(10px)',
+          borderRight: '1px solid #fcd34d',
+          padding: '1rem',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {/* 🔥 REAL UPLOAD BUTTON */}
+          <label style={{
+            width: '100%',
+            padding: '0.75rem',
+            marginBottom: '1.5rem',
+            borderRadius: '12px',
+            fontWeight: '600',
+            color: '#78350f',
+            background: uploading ? '#d1d5db' : 'linear-gradient(to right, #fde047, #fbbf24)',
+            border: 'none',
+            cursor: uploading ? 'wait' : 'pointer',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            transition: 'all 0.2s',
+            textAlign: 'center',
+            display: 'block'
+          }}>
+            {uploading ? '⏳ Uploading...' : '📄 Upload PDF'}
             <input 
+              ref={fileInputRef}
               type="file" 
               accept="application/pdf" 
-              className="hidden" 
-              onChange={handleUpload} 
-              disabled={uploading} 
+              onChange={handleUpload}
+              disabled={uploading}
+              style={{ display: 'none' }}
             />
           </label>
 
-          {/* Document List */}
-          <div className="flex-1 overflow-y-auto px-4">
-            <h3 className="text-xs font-bold uppercase text-amber-700 mb-3">Documents</h3>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <h3 style={{ 
+              fontSize: '0.75rem', 
+              fontWeight: '700', 
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              color: '#b45309',
+              marginBottom: '0.75rem'
+            }}>Documents</h3>
             {documents.length === 0 ? (
-              <p className="text-sm text-amber-600 italic">No files yet</p>
+              <p style={{ 
+                fontSize: '0.875rem', 
+                color: '#f59e0b', 
+                textAlign: 'center',
+                marginTop: '2rem'
+              }}>No documents uploaded yet</p>
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {documents.map((doc, i) => (
-                  <div 
-                    key={i}
-                    onClick={() => {
-                      setActivePdfUrl(doc.url);
-                      setActivePdfName(doc.name);
-                    }}
-                    className={`p-3 rounded-lg cursor-pointer transition-all border-2
-                      ${activePdfUrl === doc.url 
-                        ? "bg-yellow-100 border-amber-400" 
-                        : "bg-amber-50 border-transparent hover:bg-amber-100"}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span>📄</span>
-                      <span className="text-sm truncate">{doc.name}</span>
+                  <div key={i} style={{
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    background: '#fef3c7',
+                    border: '1px solid #fcd34d',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.875rem' }}>📑</span>
+                      <span style={{ 
+                        fontSize: '0.875rem', 
+                        color: '#78350f',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>{doc}</span>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Stats */}
-          {chunks > 0 && (
-            <div className="p-4 border-t border-amber-200 bg-amber-50">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-amber-600">{chunks}</div>
-                <div className="text-xs text-amber-700">Knowledge Chunks</div>
-              </div>
-            </div>
-          )}
         </aside>
 
-        {/* Center - Chat Area */}
-        <section className="flex-1 flex flex-col min-w-0">
-          
+        {/* Center - Chat Area (60%) */}
+        <section style={{ 
+          width: '60%', 
+          display: 'flex', 
+          flexDirection: 'column' 
+        }}>
+
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            padding: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}>
             {messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-md">
-                  <div className="text-6xl mb-4">💬</div>
-                  <h2 className="text-2xl font-bold text-amber-900 mb-2">Ready to Chat!</h2>
-                  <p className="text-amber-700">Upload a PDF to start asking questions</p>
+              <div style={{ 
+                height: '100%', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center' 
+              }}>
+                <div style={{ 
+                  textAlign: 'center', 
+                  maxWidth: '28rem'
+                }}>
+                  <div style={{ fontSize: '8rem', marginBottom: '1rem' }}>💬</div>
+                  <h2 style={{ 
+                    fontSize: '2rem', 
+                    fontWeight: '700', 
+                    color: '#78350f',
+                    marginBottom: '1rem'
+                  }}>Ask me anything</h2>
+                  <p style={{ fontSize: '1.125rem', color: '#b45309' }}>
+                    Upload a PDF and start asking questions about your documents
+                  </p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-4 max-w-3xl mx-auto">
+              <>
                 {messages.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-4 rounded-2xl shadow ${
-                      msg.type === 'user' 
-                        ? 'bg-gradient-to-r from-yellow-400 to-amber-400 text-amber-900' 
-                        : 'bg-white border-2 border-amber-200'
-                    }`}>
-                      <p className="leading-relaxed">{msg.text}</p>
-                      {msg.sources && msg.sources.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-amber-200">
-                          <p className="text-xs font-semibold text-amber-700 mb-1">📚 Sources:</p>
-                          {msg.sources.map((src, j) => (
-                            <p key={j} className="text-xs text-amber-600 mt-1 italic">"{src}"</p>
-                          ))}
+                  <div key={i} style={{ 
+                    display: 'flex', 
+                    justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start' 
+                  }}>
+                    <div style={{
+                      maxWidth: '75%',
+                      padding: '1rem',
+                      borderRadius: '16px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      background: msg.type === 'user' 
+                        ? 'linear-gradient(to right, #fbbf24, #f59e0b)'
+                        : 'white',
+                      color: msg.type === 'user' ? '#78350f' : '#1f2937',
+                      border: msg.type === 'user' ? 'none' : '1px solid #fcd34d'
+                    }}>
+                      <p style={{ wordBreak: 'break-word' }}>{msg.text}</p>
+                      {msg.source && (
+                        <div style={{
+                          marginTop: '0.5rem',
+                          paddingTop: '0.5rem',
+                          borderTop: '1px solid #fcd34d',
+                          fontSize: '0.75rem',
+                          color: '#d97706'
+                        }}>
+                          📍 {msg.source.substring(0, 100)}...
                         </div>
                       )}
                     </div>
                   </div>
                 ))}
                 {loading && (
-                  <div className="flex justify-start">
-                    <div className="bg-white border-2 border-amber-200 p-4 rounded-2xl shadow">
-                      <div className="flex gap-2">
-                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                      </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <div style={{
+                      padding: '1rem',
+                      borderRadius: '16px',
+                      background: 'white',
+                      border: '1px solid #fcd34d',
+                      display: 'flex',
+                      gap: '0.5rem'
+                    }}>
+                      <div style={{ 
+                        width: '8px', 
+                        height: '8px', 
+                        background: '#fbbf24', 
+                        borderRadius: '50%',
+                        animation: 'bounce 1.4s infinite ease-in-out'
+                      }}></div>
+                      <div style={{ 
+                        width: '8px', 
+                        height: '8px', 
+                        background: '#fbbf24', 
+                        borderRadius: '50%',
+                        animation: 'bounce 1.4s infinite ease-in-out 0.2s'
+                      }}></div>
+                      <div style={{ 
+                        width: '8px', 
+                        height: '8px', 
+                        background: '#fbbf24', 
+                        borderRadius: '50%',
+                        animation: 'bounce 1.4s infinite ease-in-out 0.4s'
+                      }}></div>
                     </div>
                   </div>
                 )}
                 <div ref={messagesEndRef} />
-              </div>
+              </>
             )}
           </div>
 
           {/* Input */}
-          <div className="p-4 bg-white border-t border-amber-200">
-            <div className="flex gap-3 max-w-3xl mx-auto">
+          <div style={{
+            padding: '1rem',
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(10px)',
+            borderTop: '1px solid #fcd34d'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              gap: '0.75rem',
+              maxWidth: '80rem',
+              margin: '0 auto'
+            }}>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !loading && sendMessage()}
-                className="flex-1 px-4 py-3 rounded-xl border-2 border-amber-200 
-                  focus:border-amber-400 focus:outline-none bg-amber-50
-                  placeholder-amber-400"
-                placeholder="Ask about your document..."
-                disabled={loading || documents.length === 0}
+                onKeyPress={(e) => e.key === 'Enter' && !loading && sendMessage()}
+                disabled={loading}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '12px',
+                  border: '2px solid #fcd34d',
+                  outline: 'none',
+                  background: 'white',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                  fontSize: '1rem',
+                  opacity: loading ? 0.5 : 1
+                }}
+                placeholder="Ask a question about your documents..."
               />
               <button
                 onClick={sendMessage}
-                disabled={!input.trim() || loading || documents.length === 0}
-                className="px-6 py-3 rounded-xl font-semibold
-                  bg-gradient-to-r from-yellow-400 to-amber-400 text-amber-900
-                  hover:from-yellow-500 hover:to-amber-500
-                  shadow-lg hover:shadow-xl transition-all
-                  disabled:opacity-50 disabled:cursor-not-allowed">
-                <span className="text-xl">➤</span>
+                disabled={!input.trim() || loading}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  fontWeight: '600',
+                  background: (!input.trim() || loading) ? '#d1d5db' : 'linear-gradient(to right, #fbbf24, #f59e0b)',
+                  border: 'none',
+                  cursor: (!input.trim() || loading) ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  color: '#78350f',
+                  transition: 'all 0.2s'
+                }}>
+                <span style={{ fontSize: '1.25rem' }}>➤</span>
               </button>
             </div>
           </div>
         </section>
 
-        {/* Right Panel - PDF Viewer */}
-        <aside className="w-[500px] bg-white border-l border-amber-200 flex flex-col shrink-0 hidden lg:flex">
-          
-          {/* PDF Header */}
-          <div className="h-14 bg-amber-100 border-b border-amber-200 flex items-center px-4">
-            <span className="text-xl mr-2">📄</span>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-amber-900">Source Context</h3>
-              {activePdfName && (
-                <p className="text-xs text-amber-700 truncate">{activePdfName}</p>
-              )}
-            </div>
+        {/* Right Sidebar - 20% */}
+        <aside style={{
+          width: '20%',
+          minWidth: '280px',
+          background: 'white',
+          borderLeft: '1px solid #fcd34d',
+          padding: '1.25rem',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginBottom: '1rem',
+            paddingBottom: '0.75rem',
+            borderBottom: '1px solid #fcd34d'
+          }}>
+            <span style={{ fontSize: '1.125rem' }}>📄</span>
+            <h3 style={{ fontWeight: '700', color: '#78350f' }}>Source Context</h3>
           </div>
 
-          {/* PDF Viewer */}
-          <div className="flex-1 relative bg-gray-100">
-            {activePdfUrl ? (
-              <iframe 
-                src={activePdfUrl} 
-                className="w-full h-full border-none" 
-                title="PDF Viewer"
-              />
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-amber-600 p-8 text-center">
-                <div className="text-6xl mb-4">👁️</div>
-                <h3 className="text-xl font-bold mb-2">No PDF Selected</h3>
-                <p className="text-sm">Upload a PDF to view it here instantly</p>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {sourceContext ? (
+              <div style={{ animation: 'fadeIn 0.3s ease-in' }}>
+                <h4 style={{ 
+                  fontSize: '0.875rem', 
+                  fontWeight: '700', 
+                  color: '#b45309',
+                  marginBottom: '0.5rem'
+                }}>
+                  {sourceContext.title}
+                </h4>
+                <div style={{
+                  padding: '1rem',
+                  background: '#fffbeb',
+                  borderRadius: '8px',
+                  border: '1px solid #fcd34d',
+                  fontSize: '0.875rem',
+                  color: '#4b5563',
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: '1.6'
+                }}>
+                  {sourceContext.content}
+                </div>
               </div>
+            ) : (
+              <p style={{
+                fontSize: '0.875rem',
+                color: '#f59e0b',
+                textAlign: 'center',
+                marginTop: '2rem',
+                lineHeight: '1.5'
+              }}>
+                Source excerpts or uploaded file details will appear here.
+              </p>
             )}
           </div>
         </aside>
