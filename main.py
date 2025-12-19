@@ -35,7 +35,8 @@ client = groq.Groq(api_key=GROQ_KEY)
 
 # ☁️ Robust Embedding Function
 def get_embedding(text):
-    api_url = "https://router.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+    # ✅ FIX: Updated URL to the correct Hugging Face Inference API
+    api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     for attempt in range(5): 
@@ -47,12 +48,19 @@ def get_embedding(text):
                 print(f"⚠️ Error {response.status_code}: {response.text}")
                 if response.status_code == 429: 
                     time.sleep(10) # Cooldown if blocked
+                elif response.status_code == 503:
+                    time.sleep(5) # Model loading, wait a bit
                 else:
                     time.sleep(2)
                 continue
 
             data = response.json()
+            
+            # Hugging Face sometimes returns a list, sometimes a list of lists.
             if isinstance(data, list):
+                # If it's a list of embeddings (nested), take the first one
+                if len(data) > 0 and isinstance(data[0], list):
+                    return data[0]
                 return data
                 
         except Exception as e:
@@ -82,9 +90,8 @@ async def upload_pdf(file: UploadFile = File(...)):
     vectors = []
     print(f"Processing {len(chunks)} chunks (Full Document)...")
 
-    # ✅ FIXED: Loop through ALL chunks (No limit)
     for i, chunk in enumerate(chunks): 
-        print(f"Processing chunk {i+1}/{len(chunks)}...") # Progress Log
+        print(f"Processing chunk {i+1}/{len(chunks)}...") 
         
         vector = get_embedding(chunk)
         
@@ -98,12 +105,12 @@ async def upload_pdf(file: UploadFile = File(...)):
             "metadata": {"text": chunk}
         })
         
-        # ⏳ Safety Pause: 0.5s is usually enough to prevent 429 errors
-        time.sleep(0.5)
+        # ⏳ Safety Pause to prevent rate limits
+        time.sleep(0.3)
 
     if vectors:
         try:
-            # Upsert in batches of 100 to be safe
+            # Upsert in batches of 100
             batch_size = 100
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
@@ -121,19 +128,33 @@ class Query(BaseModel):
 
 @app.post("/chat")
 async def chat(query: Query):
+    print(f"💬 Question: {query.question}")
     q_embedding = get_embedding(query.question)
     
     if not q_embedding:
-        return {"answer": "⚠️ Error: AI model is not responding."}
+        return {"answer": "⚠️ Error: AI model is not responding. (Embedding failed)"}
 
+    # Search Pinecone
     search_res = index.query(vector=q_embedding, top_k=5, include_metadata=True)
-    context = "\n".join([match['metadata']['text'] for match in search_res['matches']])
+    
+    # Get the context text
+    context = "\n\n".join([match['metadata']['text'] for match in search_res['matches']])
+
+    if not context:
+        context = "No relevant context found in the document."
 
     chat_completion = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "You are a helpful assistant. Answer based on the context provided."},
+            {"role": "system", "content": "You are a helpful assistant. Answer the user's question strictly based on the context provided below. If the answer is not in the context, say 'I cannot find the answer in the document.'"},
             {"role": "user", "content": f"Context: {context}\n\nQuestion: {query.question}"}
         ],
         model="llama3-8b-8192",
     )
-    return {"answer": chat_completion.choices[0].message.content}
+    
+    response_text = chat_completion.choices[0].message.content
+    
+    # ✅ RETURN BOTH ANSWER AND SOURCE (For your new UI)
+    return {
+        "answer": response_text,
+        "source": context
+    }
