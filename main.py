@@ -33,10 +33,9 @@ pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ SMART EMBEDDING FUNCTION (Handles Rate Limits)
+# ☁️ GEMINI EMBEDDING FUNCTION
 def get_embedding(text):
     if not GEMINI_API_KEY:
-        print("❌ Error: GEMINI_API_KEY is missing.")
         return None
 
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={GEMINI_API_KEY}"
@@ -47,24 +46,21 @@ def get_embedding(text):
         "content": { "parts": [{ "text": clean_text }] }
     }
 
-    # Retry up to 3 times
+    # Retry logic
     for attempt in range(3): 
         try:
             response = requests.post(api_url, json=payload)
             
-            # ✅ SUCCESS
             if response.status_code == 200:
                 data = response.json()
                 if "embedding" in data and "values" in data["embedding"]:
                     return data["embedding"]["values"]
 
-            # 🛑 RATE LIMIT (429) -> WAIT AND RETRY
             elif response.status_code == 429:
-                print(f"⚠️ Quota hit! Waiting 30 seconds before retrying... (Attempt {attempt+1})")
-                time.sleep(30) 
-                continue # Try again
+                print(f"⚠️ Quota hit! Waiting 40s... (Attempt {attempt+1})")
+                time.sleep(40) # Wait longer for Google to forgive us
+                continue
             
-            # OTHER ERRORS
             else:
                 print(f"⚠️ Error {response.status_code}: {response.text}")
                 time.sleep(2)
@@ -89,14 +85,18 @@ async def upload_pdf(file: UploadFile = File(...)):
     for page in reader.pages:
         text += page.extract_text() or ""
 
-    # Chunk text
-    chunk_size = 1000 
+    # ✅ KEY FIX: BIGGER CHUNKS = FEWER CALLS
+    # Gemini can handle large context. 5000 chars is safe and efficient.
+    chunk_size = 5000 
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
     vectors = []
-    print(f"Processing {len(chunks)} chunks...")
+    print(f"Processing {len(chunks)} chunks (Optimized for Rate Limits)...")
 
     for i, chunk in enumerate(chunks): 
+        # Calculate percent complete for logs
+        print(f"Processing chunk {i+1}/{len(chunks)}...") 
+        
         vector = get_embedding(chunk)
         
         if not vector:
@@ -109,12 +109,12 @@ async def upload_pdf(file: UploadFile = File(...)):
             "metadata": {"text": chunk}
         })
         
-        # ⏳ Add a small delay between every request to be nice to the API
-        time.sleep(1.0) 
+        # ⏳ 2 Second pause is plenty when using large chunks
+        time.sleep(2.0) 
 
     if vectors:
         try:
-            # Upsert in small batches
+            # Upsert in batches
             batch_size = 50
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
@@ -133,10 +133,15 @@ class Query(BaseModel):
 @app.post("/chat")
 async def chat(query: Query):
     print(f"💬 Question: {query.question}")
+    
+    # Check if query is empty
+    if not query.question.strip():
+        return {"answer": "Please ask a valid question."}
+
     q_embedding = get_embedding(query.question)
     
     if not q_embedding:
-        return {"answer": "⚠️ I am busy! Please wait 30 seconds and try again."}
+        return {"answer": "⚠️ System is busy (Rate Limit). Please wait 1 minute and try again."}
 
     search_res = index.query(vector=q_embedding, top_k=5, include_metadata=True)
     context = "\n\n".join([match['metadata']['text'] for match in search_res['matches']]) or "No context found."
