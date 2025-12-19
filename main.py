@@ -26,46 +26,49 @@ app.add_middleware(
 # API Keys
 PINECONE_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_KEY = os.getenv("GROQ_API_KEY")
-HF_TOKEN = os.getenv("HF_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") # NEW KEY
 
 # Initialize
 pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ Robust Embedding Function
+# ☁️ NEW: Google Gemini Embedding Function (More Reliable)
 def get_embedding(text):
-    # ✅ FIX: Updated URL to the correct Hugging Face Inference API
-    api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    if not GEMINI_API_KEY:
+        print("❌ Error: GEMINI_API_KEY is missing in Environment Variables.")
+        return None
+
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={GEMINI_API_KEY}"
     
-    for attempt in range(5): 
+    # Clean text slightly to avoid JSON errors
+    clean_text = text.replace("\n", " ")
+    payload = {
+        "model": "models/embedding-001",
+        "content": {
+            "parts": [{
+                "text": clean_text
+            }]
+        }
+    }
+
+    for attempt in range(3): 
         try:
-            payload = {"inputs": text, "options": {"wait_for_model": True}}
-            response = requests.post(api_url, headers=headers, json=payload)
+            response = requests.post(api_url, json=payload)
             
             if response.status_code != 200:
                 print(f"⚠️ Error {response.status_code}: {response.text}")
-                if response.status_code == 429: 
-                    time.sleep(10) # Cooldown if blocked
-                elif response.status_code == 503:
-                    time.sleep(5) # Model loading, wait a bit
-                else:
-                    time.sleep(2)
+                time.sleep(2)
                 continue
 
             data = response.json()
+            # Extract embedding from Gemini response structure
+            if "embedding" in data and "values" in data["embedding"]:
+                return data["embedding"]["values"]
             
-            # Hugging Face sometimes returns a list, sometimes a list of lists.
-            if isinstance(data, list):
-                # If it's a list of embeddings (nested), take the first one
-                if len(data) > 0 and isinstance(data[0], list):
-                    return data[0]
-                return data
-                
         except Exception as e:
             print(f"❌ Network Error: {e}")
-            time.sleep(2)
+            time.sleep(1)
 
     return None
 
@@ -84,7 +87,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         text += page.extract_text() or ""
 
     # Chunk text
-    chunk_size = 500
+    chunk_size = 1000 # Gemini handles larger chunks better
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
     vectors = []
@@ -105,13 +108,12 @@ async def upload_pdf(file: UploadFile = File(...)):
             "metadata": {"text": chunk}
         })
         
-        # ⏳ Safety Pause to prevent rate limits
-        time.sleep(0.3)
+        time.sleep(0.2) # Small pause for safety
 
     if vectors:
         try:
-            # Upsert in batches of 100
-            batch_size = 100
+            # Upsert in batches of 50
+            batch_size = 50
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
                 index.upsert(batch)
@@ -153,7 +155,6 @@ async def chat(query: Query):
     
     response_text = chat_completion.choices[0].message.content
     
-    # ✅ RETURN BOTH ANSWER AND SOURCE (For your new UI)
     return {
         "answer": response_text,
         "source": context
