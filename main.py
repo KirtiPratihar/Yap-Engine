@@ -33,7 +33,7 @@ pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ GEMINI EMBEDDING FUNCTION
+# ☁️ EXTREMELY SAFE EMBEDDING FUNCTION
 def get_embedding(text):
     if not GEMINI_API_KEY:
         return None
@@ -57,17 +57,18 @@ def get_embedding(text):
                     return data["embedding"]["values"]
 
             elif response.status_code == 429:
-                print(f"⚠️ Quota hit! Waiting 40s... (Attempt {attempt+1})")
-                time.sleep(40) # Wait longer for Google to forgive us
+                # If we hit the limit, wait a LONG time (60s) to fully reset the quota
+                print(f"⚠️ Quota hit! Waiting 60s to cool down... (Attempt {attempt+1})")
+                time.sleep(60) 
                 continue
             
             else:
                 print(f"⚠️ Error {response.status_code}: {response.text}")
-                time.sleep(2)
+                time.sleep(5)
 
         except Exception as e:
             print(f"❌ Network Error: {e}")
-            time.sleep(1)
+            time.sleep(5)
 
     return None
 
@@ -85,36 +86,37 @@ async def upload_pdf(file: UploadFile = File(...)):
     for page in reader.pages:
         text += page.extract_text() or ""
 
-    # ✅ KEY FIX: BIGGER CHUNKS = FEWER CALLS
-    # Gemini can handle large context. 5000 chars is safe and efficient.
-    chunk_size = 5000 
+    # Use large chunks to reduce the NUMBER of requests
+    chunk_size = 8000 
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
     vectors = []
-    print(f"Processing {len(chunks)} chunks (Optimized for Rate Limits)...")
+    print(f"Processing {len(chunks)} chunks...")
+
+    # Initial cooldown to ensure we start fresh
+    time.sleep(2)
 
     for i, chunk in enumerate(chunks): 
-        # Calculate percent complete for logs
         print(f"Processing chunk {i+1}/{len(chunks)}...") 
         
         vector = get_embedding(chunk)
         
-        if not vector:
-            print(f"❌ Failed to process chunk {i+1}")
-            continue
-            
-        vectors.append({
-            "id": f"{file.filename}_{i}",
-            "values": vector,
-            "metadata": {"text": chunk}
-        })
-        
-        # ⏳ 2 Second pause is plenty when using large chunks
-        time.sleep(2.0) 
+        if vector:
+            vectors.append({
+                "id": f"{file.filename}_{i}",
+                "values": vector,
+                "metadata": {"text": chunk}
+            })
+        else:
+            print(f"❌ Failed chunk {i+1}")
+
+        # 🛑 NUCLEAR SAFETY: Wait 10 seconds between every chunk
+        # This prevents hitting the "Requests Per Minute" limit.
+        print("⏳ Cooling down for 10s...")
+        time.sleep(10.0) 
 
     if vectors:
         try:
-            # Upsert in batches
             batch_size = 50
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
@@ -134,21 +136,17 @@ class Query(BaseModel):
 async def chat(query: Query):
     print(f"💬 Question: {query.question}")
     
-    # Check if query is empty
-    if not query.question.strip():
-        return {"answer": "Please ask a valid question."}
-
     q_embedding = get_embedding(query.question)
     
     if not q_embedding:
-        return {"answer": "⚠️ System is busy (Rate Limit). Please wait 1 minute and try again."}
+        return {"answer": "⚠️ System is busy. Please wait 1 minute."}
 
     search_res = index.query(vector=q_embedding, top_k=5, include_metadata=True)
     context = "\n\n".join([match['metadata']['text'] for match in search_res['matches']]) or "No context found."
 
     chat_completion = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "You are a helpful assistant. Answer strictly based on the context provided."},
+            {"role": "system", "content": "You are a helpful assistant. Answer strictly based on the context provided. Use Markdown formatting (bold, lists) in your answer."},
             {"role": "user", "content": f"Context: {context}\n\nQuestion: {query.question}"}
         ],
         model="llama3-8b-8192",
