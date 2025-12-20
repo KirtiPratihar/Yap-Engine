@@ -8,7 +8,7 @@
 
 Built for **speed, privacy, and multi-user support**, it integrates **Groq Llama 3.3**, **Hugging Face embeddings**, and **Pinecone Namespaces** to provide seamless, isolated AI-assisted document analysis.
 
-![Yap Engine Screenshot](.\assets\demo.png)
+![Yap Engine Screenshot](assets\demo.png)
 
 ---
 
