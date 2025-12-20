@@ -26,55 +26,55 @@ app.add_middleware(
 # API Keys
 PINECONE_KEY = os.getenv("PINECONE_API_KEY")
 GROQ_KEY = os.getenv("GROQ_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") 
+HF_TOKEN = os.getenv("HF_TOKEN") # ✅ USING HUGGING FACE NOW
 
 # Initialize
 pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ EXTREMELY SAFE EMBEDDING FUNCTION
+# ☁️ HUGGING FACE EMBEDDING FUNCTION (No Strict Rate Limits!)
 def get_embedding(text):
-    if not GEMINI_API_KEY:
+    if not HF_TOKEN:
+        print("❌ Error: HF_TOKEN is missing")
         return None
 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedContent?key={GEMINI_API_KEY}"
+    # URL for the free all-MiniLM-L6-v2 model
+    api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
-    clean_text = text.replace("\n", " ")
-    payload = {
-        "model": "models/embedding-001",
-        "content": { "parts": [{ "text": clean_text }] }
-    }
-
-    # Retry logic
-    for attempt in range(3): 
+    # Retry logic for network blips
+    for attempt in range(5): 
         try:
-            response = requests.post(api_url, json=payload)
+            payload = {"inputs": text, "options": {"wait_for_model": True}}
+            response = requests.post(api_url, headers=headers, json=payload)
             
             if response.status_code == 200:
                 data = response.json()
-                if "embedding" in data and "values" in data["embedding"]:
-                    return data["embedding"]["values"]
-
-            elif response.status_code == 429:
-                # If we hit the limit, wait a LONG time (60s) to fully reset the quota
-                print(f"⚠️ Quota hit! Waiting 60s to cool down... (Attempt {attempt+1})")
-                time.sleep(60) 
+                # Handle different response formats (List or List of Lists)
+                if isinstance(data, list):
+                    if len(data) > 0 and isinstance(data[0], list):
+                        return data[0] 
+                    return data
+            
+            elif response.status_code == 503:
+                print(f"⏳ Model loading... waiting 5s (Attempt {attempt+1})")
+                time.sleep(5)
                 continue
             
             else:
                 print(f"⚠️ Error {response.status_code}: {response.text}")
-                time.sleep(5)
+                time.sleep(1)
 
         except Exception as e:
             print(f"❌ Network Error: {e}")
-            time.sleep(5)
+            time.sleep(1)
 
     return None
 
 @app.get("/")
 def home():
-    return {"message": "Yap-Engine is Awake! 🚀"}
+    return {"message": "Yap-Engine (HF Edition) is Awake! 🚀"}
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
@@ -86,15 +86,12 @@ async def upload_pdf(file: UploadFile = File(...)):
     for page in reader.pages:
         text += page.extract_text() or ""
 
-    # Use large chunks to reduce the NUMBER of requests
-    chunk_size = 8000 
+    # Hugging Face handles smaller chunks better (~1000 chars)
+    chunk_size = 1000 
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
     vectors = []
-    print(f"Processing {len(chunks)} chunks...")
-
-    # Initial cooldown to ensure we start fresh
-    time.sleep(2)
+    print(f"Processing {len(chunks)} chunks with Hugging Face...")
 
     for i, chunk in enumerate(chunks): 
         print(f"Processing chunk {i+1}/{len(chunks)}...") 
@@ -107,16 +104,14 @@ async def upload_pdf(file: UploadFile = File(...)):
                 "values": vector,
                 "metadata": {"text": chunk}
             })
+            # Small courtesy pause (0.5s) is enough for HF
+            time.sleep(0.5) 
         else:
             print(f"❌ Failed chunk {i+1}")
 
-        # 🛑 NUCLEAR SAFETY: Wait 10 seconds between every chunk
-        # This prevents hitting the "Requests Per Minute" limit.
-        print("⏳ Cooling down for 10s...")
-        time.sleep(10.0) 
-
     if vectors:
         try:
+            # Batch upsert
             batch_size = 50
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
@@ -139,7 +134,7 @@ async def chat(query: Query):
     q_embedding = get_embedding(query.question)
     
     if not q_embedding:
-        return {"answer": "⚠️ System is busy. Please wait 1 minute."}
+        return {"answer": "⚠️ Error: Embedding model failed. Check backend logs."}
 
     search_res = index.query(vector=q_embedding, top_k=5, include_metadata=True)
     context = "\n\n".join([match['metadata']['text'] for match in search_res['matches']]) or "No context found."
