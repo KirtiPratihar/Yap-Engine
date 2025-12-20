@@ -33,24 +33,30 @@ pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ HUGGING FACE ROUTER EMBEDDING FUNCTION (The Fix)
+# ☁️ HUGGING FACE ROUTER EMBEDDING FUNCTION
 def get_embedding(text):
     if not HF_TOKEN:
         print("❌ Error: HF_TOKEN is missing")
         return None
 
-    # ✅ UPDATED: The new standard Router URL for 2025
+    # ✅ URL: New Router Endpoint (Correct)
     api_url = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     
     for attempt in range(5): 
         try:
-            payload = {"inputs": text, "options": {"wait_for_model": True}}
+            # ✅ THE FIX: Wrap 'text' in a list [text]
+            # This tells the API: "Give me embeddings," not "Compare sentences."
+            payload = {
+                "inputs": [text], 
+                "options": {"wait_for_model": True}
+            }
+            
             response = requests.post(api_url, headers=headers, json=payload)
             
             if response.status_code == 200:
                 data = response.json()
-                # Router sometimes returns [ [0.1, 0.2] ] (nested list)
+                # Handle the nested list format [[0.1, 0.2, ...]]
                 if isinstance(data, list):
                     if len(data) > 0 and isinstance(data[0], list):
                         return data[0] 
@@ -85,7 +91,6 @@ async def upload_pdf(file: UploadFile = File(...)):
     for page in reader.pages:
         text += page.extract_text() or ""
 
-    # Chunking: 1000 chars is safe for MiniLM
     chunk_size = 1000 
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
@@ -100,7 +105,6 @@ async def upload_pdf(file: UploadFile = File(...)):
                 "values": vector,
                 "metadata": {"text": chunk}
             })
-            # Router is fast, but 0.2s pause is polite to avoid 429s
             time.sleep(0.2) 
         else:
             print(f"❌ Failed chunk {i+1}")
@@ -133,7 +137,6 @@ async def chat(query: Query):
     search_res = index.query(vector=q_embedding, top_k=5, include_metadata=True)
     context = "\n\n".join([match['metadata']['text'] for match in search_res['matches']]) or "No context found."
 
-    # Groq Llama 3 - Fast & Free
     chat_completion = client.chat.completions.create(
         messages=[
             {"role": "system", "content": "You are a helpful assistant. Answer strictly based on the context provided. Use Markdown formatting (bold, lists) in your answer."},
