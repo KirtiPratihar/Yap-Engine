@@ -30,26 +30,29 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 # Initialize
 pc = Pinecone(api_key=PINECONE_KEY)
+# Note: You might need to delete and recreate your Pinecone index 
+# if the dimension size is different (BGE-small is 384, same as MiniLM).
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ HUGGING FACE ROUTER EMBEDDING FUNCTION (Golden Version)
+# ☁️ HUGGING FACE ROUTER EMBEDDING FUNCTION
 def get_embedding(text):
     if not HF_TOKEN:
         print("❌ Error: HF_TOKEN is missing")
         return None
 
-    # ✅ Use clean Router URL
-    api_url = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
+    # ✅ SWITCHED MODEL: BAAI/bge-small-en-v1.5
+    # This model is more robust for embeddings and doesn't get confused 
+    # about "sentence similarity" vs "feature extraction".
+    api_url = "https://router.huggingface.co/hf-inference/models/BAAI/bge-small-en-v1.5"
 
     headers = {
         "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
     }
 
-    # ✅ Wrap text in a list to force Embedding mode
     payload = {
-        "inputs": [text],
+        "inputs": [text], # Still wrap in list for safety
         "options": {"wait_for_model": True}
     }
 
@@ -59,12 +62,13 @@ def get_embedding(text):
 
             if response.status_code == 200:
                 data = response.json()
-                # Handle the nested list [[0.1, 0.2, ...]]
+                # Handle nested list [[0.1, ...]]
                 if isinstance(data, list) and isinstance(data[0], list):
-                    return data[0]  # Return the embedding vector
+                    return data[0]
+                return data
 
             elif response.status_code == 503:
-                print(f"⏳ HF model loading... waiting 5s (Attempt {attempt+1})")
+                print(f"⏳ Loading model... (Attempt {attempt+1})")
                 time.sleep(5)
 
             else:
@@ -96,22 +100,23 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     chunk_size = 1000
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
-
+    
     vectors = []
     print(f"Processing {len(chunks)} chunks...")
 
-    for i, chunk in enumerate(chunks):
+    for i, chunk in enumerate(chunks): 
         vector = get_embedding(chunk)
         if vector:
-            if len(vector) != 384:
+            if len(vector) != 384: # BGE-small is also 384 dims
                 print(f"❌ Chunk {i+1} has invalid embedding size")
                 continue
+
             vectors.append({
                 "id": f"{file.filename}_{i}",
                 "values": vector,
                 "metadata": {"text": chunk}
             })
-            time.sleep(0.2)
+            time.sleep(0.2) 
         else:
             print(f"❌ Failed chunk {i+1}")
 
@@ -125,7 +130,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             return {"filename": file.filename, "status": "Indexed Successfully"}
         except Exception as e:
             return {"error": str(e)}
-
+    
     return {"error": "Could not generate embeddings."}
 
 class Query(BaseModel):
@@ -134,9 +139,9 @@ class Query(BaseModel):
 @app.post("/chat")
 async def chat(query: Query):
     print(f"💬 Question: {query.question}")
-
+    
     q_embedding = get_embedding(query.question)
-
+    
     if not q_embedding:
         return {"answer": "⚠️ Error: Embedding model failed."}
 
@@ -148,9 +153,9 @@ async def chat(query: Query):
             {"role": "system", "content": "You are a helpful assistant. Answer strictly based on the context provided. Use Markdown formatting (bold, lists) in your answer."},
             {"role": "user", "content": f"Context: {context}\n\nQuestion: {query.question}"}
         ],
-        model="llama3-8b-8192",
+        model="llama3-8b-8192", 
     )
-
+    
     return {
         "answer": chat_completion.choices[0].message.content,
         "source": context

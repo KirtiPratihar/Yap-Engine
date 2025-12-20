@@ -10,13 +10,16 @@ export default function YapEngine() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [sourceContext, setSourceContext] = useState(null);
+  
+  // ✅ NEW: State to track if user is dragging a file
+  const [isDragging, setIsDragging] = useState(false);
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const API_URL = "https://yap-engine.onrender.com";
 
-  // 1. LOAD HISTORY (Memory)
+  // 1. LOAD HISTORY
   useEffect(() => {
     const saved = localStorage.getItem('chat_history');
     if (saved) setMessages(JSON.parse(saved));
@@ -28,8 +31,8 @@ export default function YapEngine() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0];
+  // ✅ UPDATED UPLOAD LOGIC (Works for both Button & Drag-Drop)
+  const processFile = async (file) => {
     if (!file) return;
 
     setUploading(true);
@@ -63,10 +66,39 @@ export default function YapEngine() {
       }]);
     } finally {
       setUploading(false);
+      setIsDragging(false); // Reset drag state
     }
   };
 
-  // 3. SUMMARIZE FEATURE
+  // Triggered when file is selected via Button
+  const handleFileInput = (e) => {
+    processFile(e.target.files?.[0]);
+  };
+
+  // ✅ NEW: Triggered when dragging OVER the box
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  // ✅ NEW: Triggered when leaving the box
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  // ✅ NEW: Triggered when DROPPING the file
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type === "application/pdf") {
+      processFile(file);
+    } else {
+      alert("Please drop a valid PDF file.");
+    }
+  };
+
   const handleSummarize = () => {
     if (loading) return;
     sendMessage("Summarize this document in 5 key bullet points.");
@@ -160,15 +192,47 @@ export default function YapEngine() {
           backdropFilter: 'blur(10px)', borderRight: '1px solid #fcd34d', padding: '1rem',
           display: 'flex', flexDirection: 'column'
         }}>
-          <label style={{
-            width: '100%', padding: '0.75rem', marginBottom: '0.75rem', borderRadius: '12px',
-            fontWeight: '600', color: '#78350f', background: uploading ? '#d1d5db' : 'linear-gradient(to right, #fde047, #fbbf24)',
-            border: 'none', cursor: uploading ? 'wait' : 'pointer', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-            textAlign: 'center', display: 'block'
-          }}>
-            {uploading ? '⏳ Uploading...' : '📄 Upload PDF'}
-            <input ref={fileInputRef} type="file" accept="application/pdf" onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
-          </label>
+          
+          {/* ✅ DRAG AND DROP AREA */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{
+              marginBottom: '0.75rem',
+              borderRadius: '12px',
+              transition: 'all 0.2s',
+              // Dynamic Styling for Dragging
+              border: isDragging ? '2px dashed #78350f' : '2px dashed transparent',
+              transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+            }}
+          >
+            <label style={{
+              width: '100%', padding: '2rem 1rem', borderRadius: '12px',
+              fontWeight: '600', color: '#78350f',
+              background: uploading 
+                ? '#d1d5db' 
+                : isDragging ? '#fbbf24' : 'linear-gradient(to right, #fde047, #fbbf24)', // Darker when dragging
+              border: 'none', cursor: uploading ? 'wait' : 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+              textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>{uploading ? '⏳' : '📂'}</span>
+              <span>{uploading ? 'Uploading...' : isDragging ? 'Drop PDF Here!' : 'Upload PDF'}</span>
+              <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal' }}>
+                (Click or Drag & Drop)
+              </span>
+              
+              <input 
+                ref={fileInputRef} 
+                type="file" 
+                accept="application/pdf" 
+                onChange={handleFileInput} 
+                disabled={uploading} 
+                style={{ display: 'none' }} 
+              />
+            </label>
+          </div>
 
           {/* SUMMARIZE BUTTON */}
           <button
@@ -212,7 +276,7 @@ export default function YapEngine() {
                 <div style={{ textAlign: 'center', maxWidth: '28rem' }}>
                   <div style={{ fontSize: '8rem', marginBottom: '1rem' }}>💬</div>
                   <h2 style={{ fontSize: '2rem', fontWeight: '700', color: '#78350f', marginBottom: '1rem' }}>Ask me anything</h2>
-                  <p style={{ fontSize: '1.125rem', color: '#b45309' }}>Upload a PDF and I will summarize it for you.</p>
+                  <p style={{ fontSize: '1.125rem', color: '#b45309' }}>Upload a PDF to get started.</p>
                 </div>
               </div>
             ) : (
