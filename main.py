@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header
 from pydantic import BaseModel
 from pinecone import Pinecone
 import os
@@ -15,12 +15,13 @@ load_dotenv()
 
 app = FastAPI()
 
+# ✅ UPDATE: Explicitly allow the session header
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["x-session-id", "Content-Type", "*"], 
 )
 
 # API Keys
@@ -33,43 +34,25 @@ pc = Pinecone(api_key=PINECONE_KEY)
 index = pc.Index("chat-index") 
 client = groq.Groq(api_key=GROQ_KEY)
 
-# ☁️ HUGGING FACE ROUTER EMBEDDING FUNCTION
-# Using BGE-Small to prevent the "Missing Sentences" error
+# ☁️ EMBEDDING FUNCTION (BGE-Small)
 def get_embedding(text):
     if not HF_TOKEN:
-        print("❌ Error: HF_TOKEN is missing")
         return None
-
     api_url = "https://router.huggingface.co/hf-inference/models/BAAI/bge-small-en-v1.5"
-
-    headers = {
-        "Authorization": f"Bearer {HF_TOKEN}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "inputs": [text],
-        "options": {"wait_for_model": True}
-    }
+    headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
+    payload = {"inputs": [text], "options": {"wait_for_model": True}}
 
     for attempt in range(5):
         try:
             response = requests.post(api_url, headers=headers, json=payload)
-
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list) and isinstance(data[0], list):
                     return data[0]
                 return data
-
-            elif response.status_code == 503:
-                time.sleep(5)
-            else:
-                time.sleep(1)
-
-        except Exception as e:
             time.sleep(1)
-
+        except Exception:
+            time.sleep(1)
     return None
 
 @app.get("/")
@@ -77,8 +60,12 @@ def home():
     return {"message": "Yap-Engine is Awake! 🚀"}
 
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)):
-    print(f"📥 Received file: {file.filename}")
+async def upload_pdf(
+    file: UploadFile = File(...), 
+    x_session_id: str = Header(...) # ❌ REMOVED default. Now it is required.
+):
+    print(f"📥 UPLOAD | Session: {x_session_id} | File: {file.filename}")
+    
     contents = await file.read()
     pdf_file = io.BytesIO(contents)
     reader = PdfReader(pdf_file)
@@ -93,13 +80,12 @@ async def upload_pdf(file: UploadFile = File(...)):
     chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
     
     vectors = []
-    print(f"Processing {len(chunks)} chunks...")
-
+    
     for i, chunk in enumerate(chunks): 
         vector = get_embedding(chunk)
         if vector:
             vectors.append({
-                "id": f"{file.filename}_{i}",
+                "id": f"{x_session_id}_{file.filename}_{i}",
                 "values": vector,
                 "metadata": {"text": chunk}
             })
@@ -110,7 +96,8 @@ async def upload_pdf(file: UploadFile = File(...)):
             batch_size = 50
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
-                index.upsert(batch)
+                # Save to specific namespace
+                index.upsert(batch, namespace=x_session_id) 
             return {"filename": file.filename, "status": "Indexed Successfully"}
         except Exception as e:
             return {"error": str(e)}
@@ -121,24 +108,32 @@ class Query(BaseModel):
     question: str
 
 @app.post("/chat")
-async def chat(query: Query):
-    print(f"💬 Question: {query.question}")
+async def chat(
+    query: Query, 
+    x_session_id: str = Header(...) # ❌ REMOVED default. Now it is required.
+):
+    print(f"💬 CHAT | Session: {x_session_id} | Question: {query.question}")
     
     q_embedding = get_embedding(query.question)
-    
     if not q_embedding:
         return {"answer": "⚠️ Error: Embedding model failed."}
 
-    search_res = index.query(vector=q_embedding, top_k=5, include_metadata=True)
+    # Search specific namespace
+    search_res = index.query(
+        vector=q_embedding, 
+        top_k=5, 
+        include_metadata=True, 
+        namespace=x_session_id 
+    )
+
     context = "\n\n".join([match['metadata']['text'] for match in search_res['matches']]) or "No context found."
 
-    # ✅ THE FIX: Switched to the new supported model
     chat_completion = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": "You are a helpful assistant. Answer strictly based on the context provided. Use Markdown formatting (bold, lists) in your answer."},
+            {"role": "system", "content": "You are a helpful assistant. Answer strictly based on the context provided."},
             {"role": "user", "content": f"Context: {context}\n\nQuestion: {query.question}"}
         ],
-        model="llama-3.3-70b-versatile", #
+        model="llama-3.3-70b-versatile", 
     )
     
     return {
