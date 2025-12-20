@@ -10,28 +10,33 @@ export default function YapEngine() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [sourceContext, setSourceContext] = useState(null);
-  
-  // ✅ NEW: State to track if user is dragging a file
   const [isDragging, setIsDragging] = useState(false);
+  const [sessionId, setSessionId] = useState(''); // <--- NEW
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const API_URL = "https://yap-engine.onrender.com";
 
-  // 1. LOAD HISTORY
+  // 1. GENERATE SESSION ID (The "Private Room" Key)
   useEffect(() => {
+    let id = localStorage.getItem("yap_session_id");
+    if (!id) {
+      id = "user_" + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem("yap_session_id", id);
+    }
+    setSessionId(id);
+    console.log("Session ID:", id);
+    
     const saved = localStorage.getItem('chat_history');
     if (saved) setMessages(JSON.parse(saved));
   }, []);
 
-  // 2. SAVE HISTORY
   useEffect(() => {
     localStorage.setItem('chat_history', JSON.stringify(messages));
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ✅ UPDATED UPLOAD LOGIC (Works for both Button & Drag-Drop)
   const processFile = async (file) => {
     if (!file) return;
 
@@ -40,8 +45,10 @@ export default function YapEngine() {
     formData.append("file", file);
 
     try {
+      // ✅ SEND SESSION ID IN HEADERS
       const res = await fetch(`${API_URL}/upload`, { 
         method: "POST", 
+        headers: { "x-session-id": sessionId }, 
         body: formData 
       });
 
@@ -66,37 +73,21 @@ export default function YapEngine() {
       }]);
     } finally {
       setUploading(false);
-      setIsDragging(false); // Reset drag state
+      setIsDragging(false);
     }
   };
 
-  // Triggered when file is selected via Button
   const handleFileInput = (e) => {
     processFile(e.target.files?.[0]);
   };
 
-  // ✅ NEW: Triggered when dragging OVER the box
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  // ✅ NEW: Triggered when leaving the box
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  // ✅ NEW: Triggered when DROPPING the file
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
+    e.preventDefault(); setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type === "application/pdf") {
-      processFile(file);
-    } else {
-      alert("Please drop a valid PDF file.");
-    }
+    if (file && file.type === "application/pdf") processFile(file);
+    else alert("Please drop a valid PDF file.");
   };
 
   const handleSummarize = () => {
@@ -113,9 +104,13 @@ export default function YapEngine() {
     setLoading(true);
 
     try {
+      // ✅ SEND SESSION ID IN HEADERS
       const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-session-id": sessionId // <--- Private Room Key
+        },
         body: JSON.stringify({ question: textToSend }),
       });
 
@@ -171,15 +166,15 @@ export default function YapEngine() {
         <button 
           onClick={() => {
             localStorage.removeItem('chat_history');
-            setMessages([]);
-            setSourceContext(null);
+            localStorage.removeItem('yap_session_id'); // Clear session on reset
+            window.location.reload(); // Reload to get new ID
           }}
           style={{
             background: 'rgba(255,255,255,0.2)', border: 'none', padding: '0.5rem 1rem',
             borderRadius: '8px', color: '#78350f', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem'
           }}
         >
-          🗑️ Clear History
+          🗑️ Clear History & Reset
         </button>
       </header>
 
@@ -193,7 +188,6 @@ export default function YapEngine() {
           display: 'flex', flexDirection: 'column'
         }}>
           
-          {/* ✅ DRAG AND DROP AREA */}
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -202,7 +196,6 @@ export default function YapEngine() {
               marginBottom: '0.75rem',
               borderRadius: '12px',
               transition: 'all 0.2s',
-              // Dynamic Styling for Dragging
               border: isDragging ? '2px dashed #78350f' : '2px dashed transparent',
               transform: isDragging ? 'scale(1.02)' : 'scale(1)',
             }}
@@ -212,16 +205,13 @@ export default function YapEngine() {
               fontWeight: '600', color: '#78350f',
               background: uploading 
                 ? '#d1d5db' 
-                : isDragging ? '#fbbf24' : 'linear-gradient(to right, #fde047, #fbbf24)', // Darker when dragging
+                : isDragging ? '#fbbf24' : 'linear-gradient(to right, #fde047, #fbbf24)', 
               border: 'none', cursor: uploading ? 'wait' : 'pointer',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
               textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px'
             }}>
               <span style={{ fontSize: '1.5rem' }}>{uploading ? '⏳' : '📂'}</span>
               <span>{uploading ? 'Uploading...' : isDragging ? 'Drop PDF Here!' : 'Upload PDF'}</span>
-              <span style={{ fontSize: '0.7rem', opacity: 0.8, fontWeight: 'normal' }}>
-                (Click or Drag & Drop)
-              </span>
               
               <input 
                 ref={fileInputRef} 
@@ -234,7 +224,6 @@ export default function YapEngine() {
             </label>
           </div>
 
-          {/* SUMMARIZE BUTTON */}
           <button
             onClick={handleSummarize}
             disabled={loading || documents.length === 0}
@@ -266,6 +255,12 @@ export default function YapEngine() {
               </div>
             )}
           </div>
+          
+          {/* Debug Info */}
+          <div style={{marginTop: 'auto', fontSize: '0.6rem', color: '#b45309', opacity: 0.5, textAlign: 'center'}}>
+            Session: {sessionId}
+          </div>
+
         </aside>
 
         {/* Center - Chat Area */}
@@ -290,7 +285,7 @@ export default function YapEngine() {
                       color: msg.type === 'user' ? '#78350f' : '#1f2937',
                       border: msg.type === 'user' ? 'none' : '1px solid #fcd34d'
                     }}>
-                      {/* MARKDOWN COMPONENT */}
+                       {/* MARKDOWN COMPONENT */}
                       {msg.type === 'ai' ? (
                         <div style={{ lineHeight: '1.6', fontSize: '1rem' }}>
                            <ReactMarkdown components={{
